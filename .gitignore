@@ -1,0 +1,22 @@
+.vscode/
+
+# data folder
+images/
+*.h5
+*.npy
+
+# generated output
+output/
+logs/
+
+# Python
+env/
+__pycache__/
+
+# Temp files by editors
+*~
+.*~
+
+# Vim
+*.swo
+*.swp
