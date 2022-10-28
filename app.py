@@ -61,9 +61,8 @@ def extract_features(
 
         print(ds.shape)
 
-        print('writing file names')
-        fs.resize(num_files, axis=0)
-        fs[:, ...] = np.array([str(x) for x in files])
+        print("writing file names")
+        write_array_to_dataset(fs, np.array([str(x) for x in files]))
 
         print("Done")
 
