@@ -1,0 +1,309 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CLIP FAISS demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        min-height: 100%;
+      }
+      body {
+        position: relative;
+        display: grid;
+        height: 100%;
+        grid-template-columns: auto;
+        grid-template-rows: auto 1fr auto;
+        grid-template-areas:
+          "header"
+          "body"
+          "footer";
+        margin: 0;
+      }
+
+      header {
+        grid-area: header;
+        padding: 1rem;
+      }
+      main {
+        grid-area: body;
+        padding: 1rem;
+      }
+      footer {
+        grid-area: footer;
+        padding: 1rem;
+      }
+      .search {
+        border: none;
+        padding: 0;
+        display: flex;
+        flex-flow: row nowrap;
+        align-items: stretch;
+        height: 3rem;
+        gap: 0.25rem;
+      }
+      .search__input {
+        flex: 0 0 33%;
+      }
+      .search__topk {
+        text-align: center;
+      }
+
+      .search__loader {
+        border: 0.5rem solid #f3f3f3; /* Light grey */
+        border-top: 0.5rem solid #3498db; /* Blue */
+        border-radius: 50%;
+        flex: 0 0 3rem;
+
+        animation: spin 2s linear infinite;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .gone {
+        display: none !important;
+      }
+      .hide {
+        visibility: hidden !important;
+      }
+      .result {
+        display: flex;
+        flex-flow: row wrap;
+        justify-content: flex-start;
+        gap: 24px;
+      }
+      .img-wrapper {
+        flex: 1 1 256px;
+        max-width: 256px;
+        display: flex;
+        flex-flow: column nowrap;
+      }
+      .img-wrapper__img {
+        flex: 1 1 0;
+        width: 100%;
+        height: auto;
+        object-fit: fill;
+      }
+      .img-wrapper__caption {
+        text-align: center;
+        justify-self: flex-end;
+      }
+    </style>
+  </head>
+  <body>
+    <template id="template_result">
+      <div class="img-wrapper">
+        <img class="img-wrapper__img" />
+        <div class="img-wrapper__caption">
+          <p>Cars</p>
+          <p>Distance: <span></span></p>
+        </div>
+      </div>
+    </template>
+    <datalist id="topk_list">
+      <option value="1"></option>
+      <option value="2"></option>
+      <option value="3"></option>
+      <option value="4"></option>
+      <option value="5"></option>
+      <option value="6"></option>
+      <option value="7"></option>
+      <option value="8"></option>
+      <option value="9"></option>
+      <option value="10"></option>
+    </datalist>
+    <header>
+      <h2>CLIP FAISS Demo</h2>
+    </header>
+    <main>
+      <h4>Search</h4>
+      <div>
+        <fieldset id="search" class="search">
+          <input
+            type="text"
+            class="search__input"
+            id="search_input"
+            placeholder="Type search query word"
+            name="search_term"
+          />
+          <input
+            type="number"
+            class="search__topk"
+            id="search_topk"
+            value="3"
+            min="1"
+            max="10"
+            list="topk_list"
+            name="search_topk"
+          />
+          <div id="search_loader" class="search__loader gone"></div>
+        </fieldset>
+        <span id="search_error"></span>
+      </div>
+      <h4>Results</h4>
+      <section id="result" class="result">
+        <p>Images that are close to the search term will appear here.</p>
+      </section>
+    </main>
+    <footer>
+      <h5>Built with</h5>
+      <ul>
+        <li>
+          <a
+            href="https://github.com/openai/CLIP/tree/main"
+            target="_blank"
+            rel="noopener noreferrer"
+            >CLIP</a
+          >
+        </li>
+        <li>
+          <a
+            href="https://github.com/facebookresearch/faiss"
+            target="_blank"
+            rel="noopener noreferrer"
+            >FAISS</a
+          >
+        </li>
+        <li>
+          <a
+            href="https://fastapi.tiangolo.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >FastAPI</a
+          >
+        </li>
+        <li><a href="#">Full list</a></li>
+      </ul>
+    </footer>
+  </body>
+  <script>
+    const search_el = document.getElementById("search");
+    const search_box = document.getElementById("search_input");
+    const search_loader = document.getElementById("search_loader");
+    const search_error = document.getElementById("search_error");
+    const search_topk = document.getElementById("search_topk");
+
+    const result_container = document.getElementById("result");
+    const result_template = document.getElementById("template_result");
+
+    const update_result = (search_result) => {
+      const df = document.createDocumentFragment();
+      search_result.forEach(({ link, name, distance }) => {
+        const result_el = result_template.content.cloneNode(true);
+
+        const img = result_el.querySelector(".img-wrapper__img");
+        if (img) {
+          img.src = link;
+        }
+
+        const name_el = result_el.querySelector(
+          ".img-wrapper__caption > p:first-child"
+        );
+        if (name_el) {
+          name_el.textContent = name;
+        }
+
+        const dist_el = result_el.querySelector("span");
+        if (dist_el) {
+          dist_el.textContent = distance;
+        }
+
+        df.appendChild(result_el);
+      });
+      result_container.replaceChildren(df);
+    };
+    let state = "idle";
+    const search = async (queries, top_k) => {
+      const params = new URLSearchParams();
+      queries.forEach((el) => {
+        params.append("q", el);
+      });
+      params.append("top_k", top_k);
+
+      const res = await fetch(`/search?${params.toString()}`, {
+        method: "GET",
+      });
+
+      if (!res.ok) {
+        const content_type = res.headers.get("content-type");
+        let message = `${res.status} (${res.statusText})`;
+        if (contentType && contentType.includes("application/json")) {
+          const {
+            detail: { message: err_message },
+          } = await res.json();
+          message = `${message} - ${err_message}`;
+        }
+        throw new Error(message);
+      }
+      return res.json();
+    };
+    const noop = () => {};
+    const debounce = (f, delay = 500, eager = true) => {
+      let timer = null;
+      return (...args) => {
+        if (timer) {
+          // Irrespective of eager, we need to reset
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            f(...args);
+          }, delay);
+          return;
+        }
+        if (eager) {
+          // No timer was set and eager
+          f(...args);
+          timer = setTimeout(noop, delay);
+          return;
+        }
+
+        // no timer, not eager
+        timer = setTimeout(() => {
+          f(...args);
+        }, delay);
+      };
+    };
+    const clear_error = () => {
+      search_error.textContent = "";
+    };
+    const handle_input = async () => {
+      const query = [search_box.value.trim()];
+      if (query === "") {
+        search = "idle";
+        return;
+      }
+      const top_k_str = search_topk.value.trim();
+      const top_k = Number.parseFloat(top_k_str === "" ? "3" : top_k_str) || 3;
+
+      state = "searching";
+      search_loader.classList.remove("gone");
+      search_el.disabled = true;
+      try {
+        const res = await search(query, top_k);
+        update_result(res[query[0]]);
+      } catch (err) {
+        search_error.textContent = `${err}`;
+      } finally {
+        state = "idle";
+        search_loader.classList.add("gone");
+        search_el.disabled = false;
+      }
+    };
+    const debounced_search = debounce(handle_input, 500, false);
+    const debounced_error = debounce(clear_error, 300, true);
+    const oninput = () => {
+      // debounced search
+      debounced_error();
+      debounced_search();
+    };
+    search_box.oninput = search_topk.onchange = oninput;
+  </script>
+</html>
