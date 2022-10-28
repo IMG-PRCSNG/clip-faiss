@@ -1,11 +1,11 @@
 import typing
-from typing import Literal, Optional, Generator
+from typing import Literal, Optional, Generator, Tuple
 from contextlib import contextmanager
 from pathlib import Path
 import numpy as np
 import h5py
 @contextmanager
-def get_dataset(path: Path, mode: Literal['r', 'w'] = 'r', n_dim: Optional[int] = None) -> Generator[h5py.Dataset, None, None]:
+def get_dataset(path: Path, mode: Literal['r', 'w'] = 'r', n_dim: Optional[int] = None) -> Generator[Tuple[h5py.Dataset, h5py.Dataset], None, None]:
     with h5py.File(path, mode) as f:
         if mode != 'r':
             # Write enabled
@@ -14,7 +14,11 @@ def get_dataset(path: Path, mode: Literal['r', 'w'] = 'r', n_dim: Optional[int] 
             if 'features' not in f:
                 f.create_dataset('features', shape=(0, n_dim), maxshape=(None, n_dim))
 
-        yield typing.cast(h5py.Dataset, f['features'])
+            if 'files' not in f:
+                dt = h5py.string_dtype(encoding='utf-8')
+                f.create_dataset('files', shape=(0,), dtype=dt, maxshape=(None,))
+
+        yield typing.cast(h5py.Dataset, f['features']), typing.cast(h5py.Dataset, f['files'])
 
 def write_array_to_dataset(dataset: h5py.Dataset, arr: np.ndarray):
     shape_diff = (len(dataset.shape) - len(arr.shape))

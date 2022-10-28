@@ -3,6 +3,7 @@ from typing import List
 import torch
 import typer
 from tqdm import tqdm
+import numpy as np
 from src.inference import setup_clip
 
 from src.io import get_dataset, write_array_to_dataset
@@ -45,12 +46,20 @@ def extract_features(
     features = extract_features(files, batch_size=batch_size)
     normalized = (x / torch.linalg.norm(x, dim=-1, keepdims=True) for x in features)
 
-    with get_dataset(save_to, 'w', n_dim=512) as ds, tqdm(total=num_files) as pbar:
-        ds.attrs['files'] = [f'{x}' for x in files]
+    with get_dataset(save_to, 'w', n_dim=512) as (ds, fs), tqdm(total=num_files) as pbar:
+
         for arr in normalized:
             write_array_to_dataset(ds, arr.cpu().numpy())
             pbar.update(arr.shape[0])
+
         print(ds.shape)
+
+        print('writing file names')
+        fs.resize(num_files, axis=0)
+        fs[:, ...] = np.array([str(x) for x in files])
+
+        print('Done')
+
     typer.Exit(0)
 
 @app.command()

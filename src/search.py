@@ -6,8 +6,8 @@ import faiss
 
 def setup_index(dataset: Path):
     global index, files
-    with get_dataset(dataset, 'r') as ds:
-        files = ds.attrs['files']
+    with get_dataset(dataset, 'r') as (ds, fs):
+        files = [x.decode('utf-8') for x in fs[:]]
         n_dim = ds.shape[-1]
         index = faiss.IndexFlatIP(n_dim)
         index.add(ds[:, ...])
