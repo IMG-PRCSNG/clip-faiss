@@ -295,6 +295,7 @@
         state = "idle";
         search_loader.classList.add("gone");
         search_el.disabled = false;
+        search_box.focus();
       }
     };
     const debounced_search = debounce(handle_input, 500, false);
