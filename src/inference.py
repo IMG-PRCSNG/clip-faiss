@@ -31,8 +31,12 @@ def setup_clip():
     print('Loaded')
 
     def _preprocess(p: Path):
+        try:
         with Image.open(p) as im:
-            return preprocess(im.convert('RGB'))
+                return preprocess(im.convert("RGB"))
+            except Exception as e:
+            print(f"warning: failed to process {p} - {e}")
+                return torch.zeros(3, 224, 224)
 
     def extract_image_features(images: Union[Path, List[Path]], batch_size:int = 1):
         _files = [images] if isinstance(images, Path) else images
