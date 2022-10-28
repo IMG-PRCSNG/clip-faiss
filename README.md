@@ -7,7 +7,7 @@ image retrieval demo.
 
 (Tested on Debian 11 distro )
 
-- conda
+- conda (You can install miniconda - [instructions](https://docs.conda.io/en/latest/miniconda.html))
 
 ## Setup
 
