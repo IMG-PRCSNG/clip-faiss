@@ -1,25 +1,18 @@
-from pathlib import Path
-from typing import List
-from src.io import get_dataset
-import torch
+import numpy as np
 import faiss
 
-def setup_index(dataset: Path):
-    global index, files
-    with get_dataset(dataset, 'r') as (ds, fs):
-        files = [x.decode('utf-8') for x in fs[:]]
-        n_dim = ds.shape[-1]
-        index = faiss.IndexFlatIP(n_dim)
-        index.add(ds[:, ...])
 
-        return index, files
+def build_search_index(features: np.ndarray) -> faiss.IndexFlatIP:
+    n_dim = features.shape[-1]
+    print(f"Building faiss index ({n_dim})")
+    index = faiss.IndexFlatIP(n_dim)
+    index.add(features)
+    print(f"Index built.")
+    return index
 
-def search_dataset(index, extract_text_features, queries: List[str], top_k:int = 3):
-    # Convert query to embedding
-    text_features = extract_text_features(queries)
-    text_features /= torch.linalg.norm(text_features, dim=-1, keepdims=True)
 
-    text_features_np = text_features.cpu().numpy()
-    dist, ids = index.search(x=text_features_np, k=top_k)
+def search_dataset(index: faiss.IndexFlatIP, text_features: np.ndarray, top_k: int = 3):
+
+    dist, ids = index.search(x=text_features, k=top_k)
 
     return dist, ids

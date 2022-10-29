@@ -1,13 +1,14 @@
 from functools import partial
 from pathlib import Path
 from typing import Dict, List
-import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, validator
+
 from config import APIConfig
 
+from src.io import read_dataset
 from src.inference import setup_clip
-from src.search import search_dataset, setup_index
+from src.search import build_search_index, search_dataset
 
 
 def get_search_router(config: APIConfig):
@@ -24,26 +25,29 @@ def get_search_router(config: APIConfig):
         def round_distance(cls, v):
             return round(v, config.precision)
 
-    index, files = setup_index(config.dataset)
-    num_files = len(files)
-    _, extract_text_features = setup_clip()
+    features, files, model_name = read_dataset(config.dataset)
+    index = build_search_index(features)
 
-    search_fn = partial(search_dataset, index, extract_text_features)
+    num_files = len(files)
+    _, extract_text_features = setup_clip(model_name)
+
+    search_fn = partial(search_dataset, index)
 
     @router.get("/search", response_model=Dict[str, List[SearchResponse]])
     async def search(
         q: List[str] = Query(
             default=[],
         ),
-        top_k: int = Query(config.top_k, gt=0),
+        top_k: int = Query(config.top_k, gt=0, le=min(25, num_files)),
     ):
         if len(q) == 0:
             raise HTTPException(
                 400, {"message": "Must be called with search query term"}
             )
 
-        dist, ids = search_fn(q, top_k=min(top_k, num_files))
-        dist = np.around(dist, decimals=config.precision)
+        text_features = extract_text_features(q)
+        dist, ids = search_fn(text_features, top_k=top_k)
+
         response = {
             q[qid]: [
                 SearchResponse(
@@ -55,7 +59,6 @@ def get_search_router(config: APIConfig):
             ]
             for qid in range(len(q))
         }
-        print(response)
         return response
 
     return router

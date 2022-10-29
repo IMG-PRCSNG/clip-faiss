@@ -1,16 +1,24 @@
+import enum
 from pathlib import Path
 from typing import List
-import torch
 import typer
-from tqdm import tqdm
-import numpy as np
-from src.inference import setup_clip
+from src.io import write_dataset, read_dataset
+from src.inference import setup_clip, AVAILABLE_MODELS
 
-from src.io import get_dataset, write_array_to_dataset
-from src.search import search_dataset, setup_index
+from src.search import (
+    build_search_index,
+    search_dataset,
+)
 from api import main
 
 app = typer.Typer()
+
+
+class _CLIPModel(str, enum.Enum):
+    pass
+
+
+CLIPModel = _CLIPModel("CLIPModel", {x: x for x in AVAILABLE_MODELS})
 
 
 @app.command()
@@ -19,6 +27,7 @@ def extract_features(
         1,
         help="Batch size that would fit your RAM/GPURAM",
     ),
+    model: CLIPModel = typer.Option("ViT-B/32", help="CLIP Model to use"),  # type: ignore
     images_dir: Path = typer.Argument(
         ...,
         exists=True,
@@ -46,25 +55,13 @@ def extract_features(
         f'Processing: {num_files} files, ({[str(x) for x in files[:min(num_files, 10)]]}{"..." if num_files > 10 else ""})'
     )
 
-    extract_features, _ = setup_clip()
+    model_name = model.value
+
+    extract_features, _ = setup_clip(model_name)
 
     features = extract_features(files, batch_size=batch_size)
-    normalized = (x / torch.linalg.norm(x, dim=-1, keepdims=True) for x in features)
 
-    with get_dataset(save_to, "w", n_dim=512) as (ds, fs), tqdm(
-        total=num_files
-    ) as pbar:
-
-        for arr in normalized:
-            write_array_to_dataset(ds, arr.cpu().numpy())
-            pbar.update(arr.shape[0])
-
-        print(ds.shape)
-
-        print("writing file names")
-        write_array_to_dataset(fs, np.array([str(x) for x in files]))
-
-        print("Done")
+    write_dataset(save_to, features, files, model_name)
 
     typer.Exit(0)
 
@@ -79,19 +76,24 @@ def search(
         readable=True,
         help="Extracted features .npy file",
     ),
+    top_k: int = typer.Option(3, help="Top-k results to retrieve"),
     queries: List[str] = typer.Argument(..., help="Queries"),
 ):
     if len(queries) == 0:
         raise typer.BadParameter("Query cannot be empty")
 
-    index = None
-    top_k = 3
+    features, files, model_name = read_dataset(dataset)
 
-    index, files = setup_index(dataset)
-    _, extract_text_features = setup_clip()
-    dist, ids = search_dataset(index, extract_text_features, queries, top_k=top_k)
+    top_k = min(top_k, len(files))
+    index = build_search_index(features)
 
-    print(dist, [[Path(files[x]).stem for x in top_ids] for top_ids in ids])
+    # Convert query to embedding
+    _, extract_text_features = setup_clip(model_name)
+    text_features = extract_text_features(queries)
+
+    dist, ids = search_dataset(index, text_features, top_k=top_k)
+
+    print(dist, [[Path(files[x]).name for x in top_ids] for top_ids in ids])
 
 
 @app.command()

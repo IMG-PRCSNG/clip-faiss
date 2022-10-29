@@ -1,13 +1,14 @@
 import typing
-from typing import Literal, Optional, Generator, Tuple
+from typing import List, Literal, Optional, Generator, Tuple, cast
 from contextlib import contextmanager
 from pathlib import Path
 import numpy as np
 import h5py
+from tqdm import tqdm
 
 
 @contextmanager
-def get_dataset(
+def _get_dataset(
     path: Path, mode: Literal["r", "w"] = "r", n_dim: Optional[int] = None
 ) -> Generator[Tuple[h5py.Dataset, h5py.Dataset], None, None]:
     with h5py.File(path, mode) as f:
@@ -27,7 +28,7 @@ def get_dataset(
         )
 
 
-def write_array_to_dataset(dataset: h5py.Dataset, arr: np.ndarray):
+def _write_array_to_dataset(dataset: h5py.Dataset, arr: np.ndarray):
     shape_diff = len(dataset.shape) - len(arr.shape)
     if shape_diff > 1:
         raise ValueError(
@@ -46,3 +47,36 @@ def write_array_to_dataset(dataset: h5py.Dataset, arr: np.ndarray):
 
     # Write
     dataset[-b:, ...] = iarr
+
+
+def read_dataset(dataset: Path) -> Tuple[np.ndarray, List[str], str]:
+    with _get_dataset(dataset, "r") as (ds, fs):
+        model_name: str = cast(str, ds.attrs["model"])
+        files = [x.decode("utf-8") for x in fs[:]]
+        features: np.ndarray = ds[:, ...]
+        print(f"Read ({features.shape}) features (model: {model_name})")
+        return features, files, model_name
+
+
+def write_dataset(
+    dataset: Path,
+    features: Generator[np.ndarray, None, None],
+    file_names: List[Path],
+    model_name: str,
+):
+    with _get_dataset(dataset, "w", n_dim=512) as (ds, fs), tqdm(
+        total=len(file_names)
+    ) as pbar:
+
+        ds.attrs["model"] = model_name
+
+        for arr in features:
+            _write_array_to_dataset(ds, arr)
+            pbar.update(arr.shape[0])
+
+        print("writing file names")
+        _write_array_to_dataset(fs, np.array([str(x) for x in file_names]))
+
+        print(f"Done - wrote features ({model_name}) with shape: {ds.shape}")
+
+    pass
