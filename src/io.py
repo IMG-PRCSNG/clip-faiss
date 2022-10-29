@@ -64,15 +64,28 @@ def write_dataset(
     file_names: List[Path],
     model_name: str,
 ):
-    with _get_dataset(dataset, "w", n_dim=512) as (ds, fs), tqdm(
+    """
+    Features is a 2D array of shape (len(file_names), n_dim)
+    """
+
+    # Read first array from generator to get shape
+    arr = next(features)
+    n_dim = arr.shape[-1]
+
+    with _get_dataset(dataset, "w", n_dim=n_dim) as (ds, fs), tqdm(
         total=len(file_names)
     ) as pbar:
 
         ds.attrs["model"] = model_name
 
-        for arr in features:
-            _write_array_to_dataset(ds, arr)
-            pbar.update(arr.shape[0])
+        # Write the first array
+        _write_array_to_dataset(ds, arr)
+        pbar.update(arr.shape[0])
+
+        # Write remaining arrays
+        for _arr in features:
+            _write_array_to_dataset(ds, _arr)
+            pbar.update(_arr.shape[0])
 
         print("writing file names")
         _write_array_to_dataset(fs, np.array([str(x) for x in file_names]))
