@@ -79,23 +79,35 @@
         display: flex;
         flex-flow: row wrap;
         justify-content: flex-start;
-        gap: 24px;
+        gap: 16px;
       }
       .img-wrapper {
-        flex: 1 1 256px;
-        max-width: 256px;
+        height: 256px;
         display: flex;
         flex-flow: column nowrap;
+        position: relative;
       }
       .img-wrapper__img {
-        flex: 1 1 0;
-        width: 100%;
-        height: auto;
-        object-fit: fill;
+        flex: 1 1 auto;
+        max-width: 100%;
+        width: auto;
+        vertical-align: middle;
+        height: 100%;
       }
       .img-wrapper__caption {
+        background-color: rgba(0, 0, 0, 0.4);
+        color: white;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 0;
         text-align: center;
         justify-self: flex-end;
+        transition: opacity 0.25s ease-out;
+      }
+      .img-wrapper:hover .img-wrapper__caption {
+        opacity: 1;
       }
     </style>
   </head>
@@ -155,6 +167,7 @@
       </section>
     </main>
     <footer>
+      <em>Tip: Hover on search result for name of file / distance. </em>
       <h5>Built with</h5>
       <ul>
         <li>
@@ -236,11 +249,17 @@
       if (!res.ok) {
         const content_type = res.headers.get("content-type");
         let message = `${res.status} (${res.statusText})`;
-        if (contentType && contentType.includes("application/json")) {
-          const {
-            detail: { message: err_message },
-          } = await res.json();
-          message = `${message} - ${err_message}`;
+        if (content_type && content_type.includes("application/json")) {
+          const { detail } = await res.json();
+          if ("message" in detail) {
+            message = `${message} - ${detail["message"]}`;
+          } else if (Array.isArray(detail)) {
+            let err_message = "";
+            detail.forEach(({ loc, msg }) => {
+              err_message += `${loc.join("->")} - ${msg},`;
+            });
+            message = `${message} - (${err_message})`;
+          }
         }
         throw new Error(message);
       }
