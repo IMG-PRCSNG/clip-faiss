@@ -53,7 +53,7 @@ def get_search_router(config: APIConfig):
                 SearchResponse(
                     name=Path(files[_id]).name,
                     distance=dist[qid][kid],
-                    link=f"/public/{files[_id]}",
+                    link=f"/{files[_id]}",
                 )
                 for kid, _id in enumerate(ids[qid])
             ]
