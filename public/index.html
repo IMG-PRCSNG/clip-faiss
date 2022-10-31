@@ -242,7 +242,7 @@
       });
       params.append("top_k", top_k);
 
-      const res = await fetch(`/search?${params.toString()}`, {
+      const res = await fetch(`../search?${params.toString()}`, {
         method: "GET",
       });
 
