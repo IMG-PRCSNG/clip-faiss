@@ -16,7 +16,8 @@
         position: relative;
         display: grid;
         height: 100%;
-        grid-template-columns: auto;
+        max-height: 100%;
+        grid-template-columns: 100%;
         grid-template-rows: auto 1fr auto;
         grid-template-areas:
           "header"
@@ -32,6 +33,10 @@
       main {
         grid-area: body;
         padding: 1rem;
+        height: 100%;
+        overflow: hidden;
+        display: flex;
+        flex-flow: column nowrap;
       }
       footer {
         grid-area: footer;
@@ -74,6 +79,10 @@
       }
       .hide {
         visibility: hidden !important;
+      }
+      .result__wrapper {
+        flex: 1 1 auto;
+        overflow: auto;
       }
       .result {
         display: flex;
@@ -162,9 +171,11 @@
         <span id="search_error"></span>
       </div>
       <h4>Results</h4>
-      <section id="result" class="result">
-        <p>Images that are close to the search term will appear here.</p>
-      </section>
+      <div class="result__wrapper">
+        <section id="result" class="result">
+          <p>Images that are close to the search term will appear here.</p>
+        </section>
+      </div>
     </main>
     <footer>
       <em>Tip: Hover on search result for name of file / distance. </em>
@@ -210,6 +221,11 @@
 
     const update_result = (search_result) => {
       const df = document.createDocumentFragment();
+      if (search_result.length === 0) {
+        result_container.replaceChildren(df);
+        return;
+      }
+
       search_result.forEach(({ link, name, distance }) => {
         const result_el = result_template.content.cloneNode(true);
 
@@ -235,16 +251,42 @@
       result_container.replaceChildren(df);
     };
     let state = "idle";
+    let controller;
+    const sleep = (timeout) => {
+      return new Promise((resolve, reject) => {
+        setTimeout(resolve, timeout);
+      });
+    };
     const search = async (queries, top_k) => {
+      if (state !== "idle" && controller) {
+        console.log("Canceling previous search");
+        controller.abort();
+        state = await Promise.resolve("idle");
+      }
+
+      if (queries.length === 0) {
+        state = "idle";
+        search_loader.classList.add("gone");
+        return { "": [] };
+      }
+
       const params = new URLSearchParams();
       queries.forEach((el) => {
         params.append("q", el);
       });
       params.append("top_k", top_k);
 
+      state = "searching";
+      search_loader.classList.remove("gone");
+
+      controller = new AbortController();
+      const signal = controller.signal;
       const res = await fetch(`../search?${params.toString()}`, {
         method: "GET",
+        signal,
       });
+      state = "idle";
+      search_loader.classList.add("gone");
 
       if (!res.ok) {
         const content_type = res.headers.get("content-type");
@@ -294,28 +336,19 @@
       search_error.textContent = "";
     };
     const handle_input = async () => {
-      const query = [search_box.value.trim()];
-      if (query === "") {
-        search = "idle";
-        return;
-      }
+      const query = search_box.value.trim();
       const top_k_str = search_topk.value.trim();
       const top_k =
         Number.parseFloat(top_k_str === "" ? "10" : top_k_str) || 10;
 
-      state = "searching";
-      search_loader.classList.remove("gone");
-      search_el.disabled = true;
       try {
-        const res = await search(query, top_k);
-        update_result(res[query[0]]);
+        const res = await search(query === "" ? [] : [query], top_k);
+        update_result(res[query]);
       } catch (err) {
-        search_error.textContent = `${err}`;
-      } finally {
-        state = "idle";
-        search_loader.classList.add("gone");
-        search_el.disabled = false;
-        search_box.focus();
+        if (err instanceof DOMException) {
+        } else {
+          search_error.textContent = `${err}`;
+        }
       }
     };
     const debounced_search = debounce(handle_input, 500, false);
