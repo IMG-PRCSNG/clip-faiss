@@ -22,7 +22,7 @@ conda activate clip-faiss
 
 A Typer based CLI can be used to extract features and do a quick search
 
-## Extract features
+### Extract features
 
 Use CLIP visual model to extract 512 embedding from images in a directory.
 The features will be written an HDF5 File (with dataset 'features' with shape - N x 512, and filenames in attrs['files'])
@@ -31,7 +31,7 @@ The features will be written an HDF5 File (with dataset 'features' with shape - 
 python3 app.py extract-features IMAGE_DIR DATASET.h5
 ```
 
-## Search
+### Search
 
 Query word embeddings are obtained from CLIP text model and searched against
 the extracted features
@@ -39,3 +39,16 @@ the extracted features
 ```bash
 python3 app.py search --dataset DATASET.h5 QUERY1 QUERY2 [...]
 ```
+
+## Web Demo
+
+A FAST API + HTML / CSS / JS app to make queries against the extracted features.
+
+### Serve
+
+```bash
+ln -s IMAGES_DIR public/images
+DATASET="DATASET.h5"  python3 app.py serve
+```
+
+You can now open http://localhost:8000/public/index.html to view the demo.
