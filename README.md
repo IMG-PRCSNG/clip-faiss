@@ -48,7 +48,10 @@ A FAST API + HTML / CSS / JS app to make queries against the extracted features.
 
 ```bash
 ln -s IMAGES_DIR public/images
-DATASET="DATASET.h5"  python3 app.py serve
+# Optionally, you can also create thumbnails and set it accordingly or re-use image dir
+ln -s IMAGES_DIR public/thumbs
+
+DATASET="DATASET.h5" python3 app.py serve
 ```
 
 You can now open http://localhost:8000/public/index.html to view the demo.

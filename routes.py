@@ -6,7 +6,8 @@ from pydantic import BaseModel, validator
 
 from config import APIConfig
 
-from src.io import read_dataset
+from src.schemas import ImageInfo
+from src.ioutils import read_dataset, get_image_info
 from src.inference import setup_clip
 from src.search import build_search_index, search_dataset
 
@@ -18,14 +19,17 @@ def get_search_router(config: APIConfig):
 
     class SearchResponse(BaseModel):
         link: str
-        name: str
+        thumbnail: str
         distance: float
+        info: ImageInfo
 
         @validator("distance")
         def round_distance(cls, v):
             return round(v, config.precision)
 
     features, files, model_name = read_dataset(config.dataset)
+    images_dir = config.images_dir
+
     index = build_search_index(features)
 
     num_files = len(files)
@@ -51,9 +55,10 @@ def get_search_router(config: APIConfig):
         response = {
             q[qid]: [
                 SearchResponse(
-                    name=Path(files[_id]).name,
+                    thumbnail=f"thumbs/{files[_id]}",
+                    link=f"images/{files[_id]}",
                     distance=dist[qid][kid],
-                    link=f"../{files[_id]}",
+                    info=get_image_info(images_dir / files[_id], images_dir),
                 )
                 for kid, _id in enumerate(ids[qid])
             ]

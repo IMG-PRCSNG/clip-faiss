@@ -4,7 +4,10 @@ from contextlib import contextmanager
 from pathlib import Path
 import numpy as np
 import h5py
+from PIL import Image, IptcImagePlugin
 from tqdm import tqdm
+
+from .schemas import ImageInfo
 
 
 @contextmanager
@@ -93,3 +96,37 @@ def write_dataset(
         print(f"Done - wrote features ({model_name}) with shape: {ds.shape}")
 
     pass
+
+
+ENCODING_MAP = {
+    "CP_1252": "cp1252",
+    "CP_UTF8": "utf-8",
+}
+
+
+def get_image_info(p: Path, basedir: Optional[Path] = None):
+    # See https://gist.github.com/bhaskarkc/abcbc4a35229815bd6ce4ab7372748f9
+
+    with Image.open(p) as im:
+        w, h = im.size
+        iminfo = ImageInfo(
+            filename=str(p.relative_to(basedir) if basedir else p),
+            width=w,
+            height=h,
+            title=p.name,
+        )
+
+        # Add iptc
+        iptc = IptcImagePlugin.getiptcinfo(im)
+        if not iptc:
+            return iminfo
+
+        encoding = iptc.get((2, 183), b"utf-8").decode()
+
+        encoding = ENCODING_MAP.get(encoding, "utf-8")
+
+        iminfo.title = iptc.get((2, 85), iminfo.title.encode()).decode(encoding)
+        iminfo.copyright = iptc.get((2, 116), b"").decode(encoding)
+        iminfo.caption = iptc.get((2, 120), b"").decode(encoding)
+
+        return iminfo

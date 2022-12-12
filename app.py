@@ -2,7 +2,7 @@ import enum
 from pathlib import Path
 from typing import List
 import typer
-from src.io import write_dataset, read_dataset
+from src.ioutils import write_dataset, read_dataset
 from src.inference import setup_clip, AVAILABLE_MODELS
 
 from src.search import (
@@ -60,8 +60,8 @@ def extract_features(
     extract_features, _ = setup_clip(model_name)
 
     features = extract_features(files, batch_size=batch_size)
-
-    write_dataset(save_to, features, files, model_name)
+    files_rel = [x.relative_to(images_dir) for x in files]
+    write_dataset(save_to, features, files_rel, model_name)
 
     typer.Exit(0)
 
